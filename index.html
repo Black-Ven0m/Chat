@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anonymous Chat ∆VNM Pro</title>
+<style>
+:root {
+    --bg-color: #0b0b0b;
+    --container-bg: #1f1f1f;
+    --visitor-bg: #333;
+    --reply-bg: linear-gradient(135deg,#ff4500,#ff8c00);
+    --text-color: #fff;
+    --typing-color: #ccc;
+}
+body {
+    font-family: 'Segoe UI', sans-serif;
+    background: var(--bg-color);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+}
+.chat-container {
+    background: var(--container-bg);
+    width: 100%;
+    max-width: 480px;
+    border-radius: 14px;
+    padding: 20px;
+    box-shadow: 0 0 30px rgba(0,0,0,0.6);
+    display: flex;
+    flex-direction: column;
+    height: 80vh;
+}
+.chat-box {
+    flex: 1;
+    overflow-y: auto;
+    margin-bottom: 10px;
+    padding-right: 5px;
+}
+.message {
+    margin: 6px 0;
+    padding: 12px;
+    border-radius: 14px;
+    max-width: 75%;
+    word-wrap: break-word;
+    font-size: 15px;
+    line-height: 1.4;
+    transition: all 0.3s ease;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+}
+.visitor { background: var(--visitor-bg); align-self: flex-start; color: var(--text-color); }
+.reply { background: var(--reply-bg); align-self: flex-end; color: var(--text-color); }
+.typing { font-style: italic; color: var(--typing-color); align-self: flex-start; margin: 4px 0; }
+textarea {
+    width: 100%;
+    padding: 12px;
+    border-radius: 8px;
+    border: none;
+    resize: none;
+    background: #2a2a2a;
+    color: var(--text-color);
+    font-size: 15px;
+}
+button {
+    margin-top: 5px;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    background: #ff4500;
+    color: var(--text-color);
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.2s;
+}
+button:hover { background: #e03e00; }
+.toggle-btn {
+    margin-bottom: 10px;
+    background: #444;
+    font-size: 14px;
+}
+@media (max-width: 500px) {
+    .chat-container { height: 90vh; padding: 15px; }
+    .message { font-size: 14px; padding: 10px; }
+}
+</style>
+</head>
+<body>
+<div class="chat-container">
+    <button class="toggle-btn" onclick="toggleMode()">Toggle Dark/Light Mode</button>
+    <div class="chat-box" id="chatBox"></div>
+    <textarea id="messageInput" rows="3" placeholder="Type your message..."></textarea>
+    <button onclick="sendMessage()">Send</button>
+    <audio id="notifSound" src="https://www.soundjay.com/button/beep-07.wav" preload="auto"></audio>
+</div>
+
+<script>
+const chatBox = document.getElementById('chatBox');
+const botToken = "7569162349:AAHGNDAruHupadIxcGYmrL6TzP8zI9SdMQg";
+const chatId = "-1002900781058";
+const notifSound = document.getElementById('notifSound');
+
+// Append message
+function appendMessage(text, type) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    div.classList.add('message', type);
+    chatBox.appendChild(div);
+    chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+// Typing indicator
+let typingDiv;
+function showTyping() {
+    if (!typingDiv) {
+        typingDiv = document.createElement('div');
+        typingDiv.textContent = "Bot is typing...";
+        typingDiv.classList.add('typing');
+        chatBox.appendChild(typingDiv);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+}
+function removeTyping() {
+    if (typingDiv) {
+        chatBox.removeChild(typingDiv);
+        typingDiv = null;
+    }
+}
+
+// Send visitor message
+async function sendMessage() {
+    const message = document.getElementById('messageInput').value.trim();
+    if (!message) return alert("Please type a message.");
+
+    appendMessage(message, 'visitor');
+
+    const text = `📨 Anonymous Message:\n${message}`;
+    const url = `https://api.allorigins.win/get?url=${encodeURIComponent(`https://api.telegram.org/bot${botToken}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent(text)}`)}`;
+
+    try { await fetch(url); } 
+    catch (err) { console.log("Telegram send error:", err); }
+
+    document.getElementById('messageInput').value = '';
+}
+
+// Poll Telegram for replies
+async function fetchReplies() {
+    try {
+        const url = `https://api.allorigins.win/get?url=${encodeURIComponent(`https://api.telegram.org/bot${botToken}/getUpdates?offset=-1`)}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        const json = JSON.parse(data.contents);
+
+        if (json.result && json.result.length > 0) {
+            const lastMessage = json.result[json.result.length - 1].message;
+            if(lastMessage.chat.id == parseInt(chatId)) {
+                const replyText = lastMessage.text.replace('📨 Anonymous Message:\n','');
+                if(!chatBox.innerHTML.includes(replyText)) {
+                    showTyping();
+                    setTimeout(() => {
+                        removeTyping();
+                        appendMessage(replyText, 'reply');
+                        notifSound.play();
+                    }, 1000);
+                }
+            }
+        }
+    } catch(err) { console.log("Fetch replies error:", err); }
+}
+
+// Poll every 5 seconds
+setInterval(fetchReplies, 5000);
+
+// Dark/Light toggle
+function toggleMode() {
+    const root = document.documentElement;
+    if(root.style.getPropertyValue('--bg-color') === '#0b0b0b') {
+        root.style.setProperty('--bg-color','#f5f5f5');
+        root.style.setProperty('--container-bg','#ffffff');
+        root.style.setProperty('--visitor-bg','#ddd');
+        root.style.setProperty('--reply-bg','linear-gradient(135deg,#ff4500,#ff8c00)');
+        root.style.setProperty('--text-color','#000');
+        root.style.setProperty('--typing-color','#555');
+    } else {
+        root.style.setProperty('--bg-color','#0b0b0b');
+        root.style.setProperty('--container-bg','#1f1f1f');
+        root.style.setProperty('--visitor-bg','#333');
+        root.style.setProperty('--reply-bg','linear-gradient(135deg,#ff4500,#ff8c00)');
+        root.style.setProperty('--text-color','#fff');
+        root.style.setProperty('--typing-color','#ccc');
+    }
+}
+</script>
+</body>
+</html>
